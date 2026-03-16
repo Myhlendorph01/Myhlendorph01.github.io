@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Geneti.me</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --cyan:   #00ffe7;
+      --blue:   #0088ff;
+      --purple: #8800ff;
+      --dark:   #020810;
+      --glow-cyan: 0 0 8px #00ffe7, 0 0 20px #00ffe799, 0 0 50px #00ffe733;
+    }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: var(--dark);
+      overflow: hidden;
+      font-family: 'Orbitron', sans-serif;
+      color: var(--cyan);
+    }
+
+    /* ── Scanline overlay ── */
+    body::after {
+      content: '';
+      position: fixed; inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,255,231,.018) 2px,
+        rgba(0,255,231,.018) 4px
+      );
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    canvas {
+      display: block;
+      position: fixed; inset: 0;
+      width: 100%; height: 100%;
+    }
+
+    /* ── HUD corners ── */
+    .hud {
+      position: fixed; inset: 0;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .corner {
+      position: absolute;
+      width: 48px; height: 48px;
+      border-color: var(--cyan);
+      border-style: solid;
+      opacity: .45;
+    }
+    .corner.tl { top: 24px; left: 24px;  border-width: 2px 0 0 2px; }
+    .corner.tr { top: 24px; right: 24px; border-width: 2px 2px 0 0; }
+    .corner.bl { bottom: 24px; left: 24px;  border-width: 0 0 2px 2px; }
+    .corner.br { bottom: 24px; right: 24px; border-width: 0 2px 2px 0; }
+
+    /* ── Content ── */
+    .stage {
+      position: fixed; inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 4;
+      gap: 18px;
+      animation: fadeIn 2.4s ease forwards;
+      opacity: 0;
+    }
+    @keyframes fadeIn { to { opacity: 1; } }
+
+    .logo-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .logo {
+      font-size: clamp(2.8rem, 8vw, 6rem);
+      font-weight: 900;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: #fff;
+      text-shadow: var(--glow-cyan);
+      position: relative;
+    }
+    .logo span { color: var(--cyan); }
+
+    /* glitch layers */
+    .logo::before,
+    .logo::after {
+      content: attr(data-text);
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%;
+      overflow: hidden;
+      opacity: .7;
+    }
+    .logo::before {
+      color: #0ff;
+      clip-path: polygon(0 0,100% 0,100% 33%,0 33%);
+      animation: glitch-a 4.5s infinite steps(1);
+    }
+    .logo::after {
+      color: #f0f;
+      clip-path: polygon(0 65%,100% 65%,100% 100%,0 100%);
+      animation: glitch-b 4.5s infinite steps(1);
+    }
+    @keyframes glitch-a {
+      0%,90%       { transform: translate(0); opacity:0; }
+      91%          { transform: translate(-3px, 1px); opacity:.6; }
+      93%          { transform: translate(3px,-1px); opacity:.6; }
+      95%,100%     { transform: translate(0); opacity:0; }
+    }
+    @keyframes glitch-b {
+      0%,90%       { transform: translate(0); opacity:0; }
+      92%          { transform: translate(3px, 2px); opacity:.5; }
+      94%          { transform: translate(-3px,-1px); opacity:.5; }
+      96%,100%     { transform: translate(0); opacity:0; }
+    }
+
+    .tagline {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: clamp(.7rem, 2vw, 1rem);
+      letter-spacing: .28em;
+      color: rgba(0,255,231,.65);
+      text-transform: uppercase;
+      margin-top: 6px;
+    }
+
+    .divider {
+      width: clamp(120px, 28vw, 340px);
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+      opacity: .55;
+    }
+
+    .sub {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: clamp(.6rem, 1.5vw, .82rem);
+      letter-spacing: .18em;
+      color: rgba(0,255,231,.38);
+      text-align: center;
+      line-height: 1.9;
+    }
+
+    /* blinking cursor */
+    .cursor {
+      display: inline-block;
+      width: .6em; height: .85em;
+      background: var(--cyan);
+      vertical-align: middle;
+      margin-left: 4px;
+      animation: blink .9s step-end infinite;
+      box-shadow: var(--glow-cyan);
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* status bar bottom */
+    .status {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: .62rem;
+      letter-spacing: .22em;
+      color: rgba(0,255,231,.28);
+      z-index: 6;
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<!-- HUD corners -->
+<div class="hud">
+  <div class="corner tl"></div>
+  <div class="corner tr"></div>
+  <div class="corner bl"></div>
+  <div class="corner br"></div>
+</div>
+
+<!-- Main content -->
+<div class="stage">
+  <div class="logo-wrap">
+    <div class="logo" data-text="GENETI.ME">GENETI<span>.ME</span></div>
+    <div class="tagline">24 · 05 · 2026</div>
+  </div>
+  <div class="divider"></div>
+  <div class="sub">
+    "Aren't we all chasing the light, mate? Looking everywhere to find it. Everywhere but within" - Sassy<span class="cursor"></span>
+  </div>
+</div>
+
+<div class="status">SYS:ONLINE &nbsp;·&nbsp; SEQ:ACTIVE &nbsp;·&nbsp; NODE:GENETI.ME</div>
+
+<script>
+/* ── DNA Helix + Particle Field ── */
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+
+let W, H, cx, cy;
+function resize() {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+  cx = W / 2; cy = H / 2;
+}
+resize();
+window.addEventListener('resize', resize);
+
+/* ── Star field ── */
+const STARS = Array.from({length: 160}, () => ({
+  x: Math.random(),
+  y: Math.random(),
+  r: Math.random() * 1.2 + .2,
+  a: Math.random(),
+  speed: Math.random() * .0003 + .0001
+}));
+
+/* ── DNA Helix parameters ── */
+const RUNGS   = 22;       // base-pairs shown at once
+const SPREAD  = 68;       // horizontal amplitude
+const VGAP    = 32;       // vertical gap between rungs
+const SCROLL  = 0.012;    // scroll speed (radians / frame)
+const RADIUS  = 5.5;      // node circle radius
+
+let t = 0;
+
+/* colour helpers */
+function nodeColor(strand, alpha) {
+  if (strand === 0) return `rgba(0,200,255,${alpha})`;
+  return `rgba(130,80,255,${alpha})`;
+}
+
+function drawDNA() {
+  const totalH = RUNGS * VGAP;
+  const yStart = cy - totalH / 2;
+
+  for (let i = 0; i < RUNGS; i++) {
+    const phase  = t + i * (Math.PI * 2 / RUNGS);
+    const y      = yStart + i * VGAP;
+
+    // strand A
+    const xA = cx + Math.cos(phase)  * SPREAD;
+    // strand B (opposite)
+    const xB = cx + Math.cos(phase + Math.PI) * SPREAD;
+
+    const depth   = (Math.sin(phase) + 1) / 2;         // 0–1 depth cue
+    const alphaA  = .35 + depth * .65;
+    const alphaB  = .35 + (1-depth) * .65;
+
+    /* rung (cross-bar) — drawn only when strands are far enough apart */
+    const dist = Math.abs(xA - xB);
+    if (dist > 14) {
+      const rAlpha = Math.min(alphaA, alphaB) * .45;
+      const grad = ctx.createLinearGradient(xA, y, xB, y);
+      grad.addColorStop(0,   `rgba(0,200,255,${rAlpha})`);
+      grad.addColorStop(0.5, `rgba(180,120,255,${rAlpha * 1.3})`);
+      grad.addColorStop(1,   `rgba(130,80,255,${rAlpha})`);
+      ctx.beginPath();
+      ctx.moveTo(xA, y); ctx.lineTo(xB, y);
+      ctx.strokeStyle = grad;
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+    }
+
+    /* strand A node */
+    const gaA = ctx.createRadialGradient(xA, y, 0, xA, y, RADIUS * 2.2);
+    gaA.addColorStop(0, `rgba(0,240,255,${alphaA})`);
+    gaA.addColorStop(1, `rgba(0,100,200,0)`);
+    ctx.beginPath();
+    ctx.arc(xA, y, RADIUS * 2.2, 0, Math.PI * 2);
+    ctx.fillStyle = gaA; ctx.fill();
+    ctx.beginPath();
+    ctx.arc(xA, y, RADIUS, 0, Math.PI * 2);
+    ctx.fillStyle = nodeColor(0, alphaA); ctx.fill();
+
+    /* strand B node */
+    const gaB = ctx.createRadialGradient(xB, y, 0, xB, y, RADIUS * 2.2);
+    gaB.addColorStop(0, `rgba(140,80,255,${alphaB})`);
+    gaB.addColorStop(1, `rgba(80,0,180,0)`);
+    ctx.beginPath();
+    ctx.arc(xB, y, RADIUS * 2.2, 0, Math.PI * 2);
+    ctx.fillStyle = gaB; ctx.fill();
+    ctx.beginPath();
+    ctx.arc(xB, y, RADIUS, 0, Math.PI * 2);
+    ctx.fillStyle = nodeColor(1, alphaB); ctx.fill();
+  }
+
+  /* smooth backbone curves */
+  for (let s = 0; s < 2; s++) {
+    ctx.beginPath();
+    for (let i = 0; i <= RUNGS; i++) {
+      const phase = t + i * (Math.PI * 2 / RUNGS);
+      const y     = yStart + i * VGAP;
+      const x     = cx + Math.cos(phase + s * Math.PI) * SPREAD;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    const depth = .5;
+    const col   = s === 0 ? `rgba(0,200,255,0.18)` : `rgba(130,80,255,0.18)`;
+    ctx.strokeStyle = col;
+    ctx.lineWidth   = 1.5;
+    ctx.stroke();
+  }
+}
+
+/* ── Floating particles ── */
+const PARTICLES = Array.from({length: 55}, () => ({
+  x: Math.random() * 1,
+  y: Math.random() * 1,
+  vx: (Math.random() - .5) * .00015,
+  vy: (Math.random() - .5) * .00018,
+  r:  Math.random() * 1.8 + .5,
+  a:  Math.random() * .5 + .1,
+  hue: Math.random() > .5 ? 185 : 270
+}));
+
+function drawParticles() {
+  PARTICLES.forEach(p => {
+    p.x += p.vx; p.y += p.vy;
+    if (p.x < 0) p.x = 1; if (p.x > 1) p.x = 0;
+    if (p.y < 0) p.y = 1; if (p.y > 1) p.y = 0;
+    ctx.beginPath();
+    ctx.arc(p.x * W, p.y * H, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${p.hue},100%,70%,${p.a})`;
+    ctx.fill();
+  });
+}
+
+/* ── Radial vignette ── */
+function drawVignette() {
+  const g = ctx.createRadialGradient(cx, cy, H*.15, cx, cy, H*.85);
+  g.addColorStop(0, 'rgba(2,8,16,0)');
+  g.addColorStop(1, 'rgba(2,8,16,0.82)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+}
+
+/* ── Central glow pool ── */
+function drawGlow() {
+  const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.min(W,H) * .38);
+  g.addColorStop(0,   'rgba(0,180,255,0.055)');
+  g.addColorStop(0.5, 'rgba(100,0,255,0.035)');
+  g.addColorStop(1,   'rgba(2,8,16,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+}
+
+/* ── Stars ── */
+function drawStars() {
+  STARS.forEach(s => {
+    s.a += s.speed;
+    const alpha = (Math.sin(s.a) * .5 + .5) * .7 + .05;
+    ctx.beginPath();
+    ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(180,220,255,${alpha})`;
+    ctx.fill();
+  });
+}
+
+/* ── Main loop ── */
+function loop() {
+  ctx.clearRect(0, 0, W, H);
+
+  drawStars();
+  drawGlow();
+  drawParticles();
+  drawDNA();
+  drawVignette();
+
+  t += SCROLL;
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
